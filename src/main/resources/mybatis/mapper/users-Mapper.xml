@@ -12,10 +12,16 @@
     -->
     <insert id="registerUser" parameterType="com.bookforest.project_bookforest_intj.user.vo.RegisterReqDto">
         INSERT INTO USERS
-        (AE_ID, CCG_U001, USER_NM, USER_ID, ADDRESS
+        (AE_ID, CCG_U001, USER_NM, ADDRESS
         , EMAIL, ENABLED, PASSWORD, PHONE, USERNAME)
-        VALUES(#{username}, 'ROLE_U01', #{userNm}, null, #{address}
+        VALUES(#{username}, 'ROLE_U01', #{userNm}, #{address}
               , #{email}, '1', #{password}, #{phone}, #{username})
     </insert>
+
+    <select id="findByNameAndUsernameAndEmail" resultType="com.bookforest.project_bookforest_intj.user.vo.UserVO">
+        SELECT USER_ID, USERNAME, PASSWORD, EMAIL, USER_NM as name, PHONE, ADDRESS
+        FROM USERS
+        WHERE USER_NM = #{name} AND USERNAME = #{username} AND EMAIL = #{email}
+    </select>
 
 </mapper>

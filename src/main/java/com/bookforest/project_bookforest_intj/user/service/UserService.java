@@ -1,6 +1,6 @@
 package com.bookforest.project_bookforest_intj.user.service;
 
-import com.bookforest.project_bookforest_intj.user.entity.UserVO;
+import com.bookforest.project_bookforest_intj.user.vo.UserVO;
 import com.bookforest.project_bookforest_intj.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,6 +29,8 @@ public class UserService {
     private UserRepository userRepository;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private UserDetailsService userDetailsService; // UserDetailsService 주입
 
     // 임시로 토큰을 저장할 맵 (실제 운영에서는 DB에 저장해야 함)
     private final Map<String, String> passwordResetTokens = new HashMap<>();
@@ -90,4 +98,54 @@ public class UserService {
         passwordResetTokens.remove(token);
         log.info("사용자 {}의 비밀번호가 재설정되었습니다.", username);
     }
+
+    /**
+     * 이름, 아이디, 이메일로 사용자를 찾아 임시 비밀번호를 발급합니다.
+     * @param name 사용자 이름
+     * @param username 사용자 아이디
+     * @param email 사용자 이메일
+     * @return 임시 비밀번호
+     */
+    public String findPassword(String name, String username, String email) {
+
+        log.info("findPaassword->name : " + name);
+        log.info("findPaassword->username : " + username);
+        log.info("findPaassword->email : " + email);
+
+        UserVO user = userRepository.findByNameAndUsernameAndEmail(name, username, email);
+        if (user == null) {
+            throw new IllegalArgumentException("입력하신 정보와 일치하는 사용자가 없습니다.");
+        }
+
+        // 임시 비밀번호 생성
+        String tempPassword = UUID.randomUUID().toString().substring(0, 8); // 8자리 임시 비밀번호
+        String encodedPassword = passwordEncoder.encode(tempPassword);
+
+        // 비밀번호 업데이트
+        userRepository.updatePassword(user.getUsername(), encodedPassword);
+        userRepository.updateMustChangePassword(user.getUsername(), true);
+        log.info("사용자 {}의 임시 비밀번호가 발급되었습니다: {}", user.getUsername(), tempPassword);
+
+        return tempPassword;
+    }
+
+    /**
+     * 사용자 비밀번호를 업데이트하고 비밀번호 변경 필요 플래그를 해제합니다.
+     * @param username 사용자 아이디
+     * @param newPassword 새 비밀번호
+     */
+    public void updatePasswordAndResetFlag(String username, String newPassword) {
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        userRepository.updatePassword(username, encodedPassword);
+        userRepository.updateMustChangePassword(username, false);
+
+        // SecurityContextHolder의 Authentication 객체 업데이트
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        Authentication newAuthentication = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities());
+        SecurityContextHolder.getContext().setAuthentication(newAuthentication);
+
+        log.info("사용자 {}의 비밀번호가 변경되었고, 비밀번호 변경 필요 플래그가 해제되었습니다.", username);
+    }
+
 }

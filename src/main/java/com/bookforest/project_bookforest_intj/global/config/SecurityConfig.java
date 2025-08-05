@@ -8,12 +8,18 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    @Autowired
+    private LoginSuccessHandler loginSuccessHandler;
 
+    @Autowired
+    private ForcePasswordChangeFilter forcePasswordChangeFilter;
 
     //5. 패스워드 인코더로 사용할 빈 등록
     @Bean
@@ -49,12 +55,12 @@ public class SecurityConfig {
         */
 
         // 새 설정 적용
-        http
+        http.csrf(csrf->csrf.disable()).httpBasic(hbasic->hbasic.disable())
             .authorizeHttpRequests(authorize -> authorize
                 // 정적 자원 및 회원가입, 로그인, 아이디 찾기, 비밀번호 찾기 관련 페이지는 모두에게 허용
-                .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico", "/user/register", "/user/login", "/user/find-id", "/user/forgot-password/**", "/user/reset-password/**").permitAll()
+                .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico", "/user/register", "/user/login", "/user/find-id", "/user/forgot-password", "/user/reset-password", "/user/forgot-password-confirmation","/user/change-password","/**").permitAll()
                 // 홈페이지, 책 관련 페이지는 모두에게 허용
-                .requestMatchers("/", "/book/**").permitAll()
+                .requestMatchers("/book/**").permitAll()
                 // 그 외 모든 요청은 인증된 사용자만 접근 가능
                 .anyRequest().authenticated()
             )
@@ -62,7 +68,7 @@ public class SecurityConfig {
                 // 사용자 정의 로그인 페이지
                 .loginPage("/user/login")
                 // 로그인 성공 시 이동할 기본 URL
-                .defaultSuccessUrl("/", true)
+                .successHandler(loginSuccessHandler)
                 // 로그인 실패 시 이동할 URL
                 .failureUrl("/user/login?error=true")
                 // 로그인 페이지는 모두에게 허용
@@ -74,6 +80,8 @@ public class SecurityConfig {
                 .invalidateHttpSession(true)
                 .deleteCookies("JSESSIONID")
             );
+
+        http.addFilterBefore(forcePasswordChangeFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
